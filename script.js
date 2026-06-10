@@ -220,7 +220,7 @@ function updateVolumes(gazeX, gazeY) {
   const targetFocused = 0.70 + 0.20 * dwellProgress;
 
   sounds.forEach((s, i) => {
-    const target = (i === closestIdx) ? targetFocused : 0.05;
+    const target = (i === closestIdx) ? targetFocused : 0.02;
     s.audio.volume += (target - s.audio.volume) * 0.06;
     s.audio.volume  = Math.max(0, Math.min(1, s.audio.volume));
   });
@@ -295,7 +295,7 @@ function detectLoop() {
     // pitch = -pitch; // 위아래 반전 필요 시 주석 해제
 
     let pointX = canvas.width  / 2 + yaw   * canvas.width  * 1.5;
-    let pointY = canvas.height / 2 + pitch * canvas.height * 1.5;
+    let pointY = canvas.height / 2 + pitch * canvas.height * 2.8;
     pointX = Math.max(0, Math.min(canvas.width,  pointX));
     pointY = Math.max(0, Math.min(canvas.height, pointY));
 
