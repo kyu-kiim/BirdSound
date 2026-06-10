@@ -14,20 +14,49 @@ let smoothX = 0;
 let smoothY = 0;
 let isFirstFrame = true;
 
+// ── Calibration ────────────────────────────────────────────
+// 사람마다 다른 정면 각도를 보정하기 위해 처음 N 프레임의 평균을 neutral 값으로 저장
+const CALIB_FRAMES  = 90;   // ~1.5초 (60fps 기준)
+let neutralYaw      = 0;
+let neutralPitch    = 0;
+let isCalibrated    = false;
+let calibYawSum     = 0;
+let calibPitchSum   = 0;
+let calibFrameCount = 0;
+
+function resetCalibration() {
+  isCalibrated    = false;
+  calibYawSum     = 0;
+  calibPitchSum   = 0;
+  calibFrameCount = 0;
+  console.log("캘리브레이션 재시작");
+}
+
+// 'C' 키로 언제든 재캘리브레이션 가능
+document.addEventListener("keydown", e => {
+  if (e.key === "c" || e.key === "C") resetCalibration();
+});
+
 // ── Audio ──────────────────────────────────────────────────
 let audioStarted = false;
 let dwellSoundIndex = -1;
 let dwellStartTime  = 0;
 const DWELL_DURATION = 4000;
 
+// xFrac: 화면 너비 비율(0~1), yFrac: 화면 높이 비율(0~1, 위=작은값)
+// ─ 하단 줄 (고개 약 5° 이내, 좌우 탐색 구간): 4 sounds ─────────────
+// ─ 상단 줄 (고개 약 20° 이상, 위쪽 구간)   : 3 sounds ─────────────
+// 소리가 9개가 되면 하단 5개 / 상단 4개로 완성
 const SOUND_DEFS = [
-  { hour: 1,  name: "Chinese Blackbird",       file: "final_1_Chinese Blackbird.wav" },
-  { hour: 3,  name: "Manchurian Bush Warbler", file: "finalize_3_Manchurian Bush Warbler .wav" },
-  { hour: 5,  name: "Rufous-tailed Robin",     file: "finalize_5_Rufous-tailed Robin.wav" },
-  { hour: 6,  name: "Marsh Tit",               file: "final_6_Marsh Tit.wav" },
-  { hour: 9,  name: "Grey-headed Woodpecker",  file: "final9_Grey-headed Woodpecker .wav" },
-  { hour: 11, name: "Japanese Wood Pigeon",    file: "final11_Japanese Wodd Pigeon.wav" },
-  { hour: 12, name: "Yellow-billed Grosbeak",  file: "final_12_Yellow-billed Grosbeak.wav" },
+  // 하단 줄 (yFrac ≈ 0.28)
+  { name: "Chinese Blackbird",       file: "final_1_Chinese Blackbird.wav",              xFrac: 0.12, yFrac: 0.28 },
+  { name: "Manchurian Bush Warbler", file: "finalize_3_Manchurian Bush Warbler .wav",    xFrac: 0.37, yFrac: 0.28 },
+  { name: "Grey-headed Woodpecker",  file: "final9_Grey-headed Woodpecker .wav",         xFrac: 0.63, yFrac: 0.28 },
+  { name: "Yellow-billed Grosbeak",  file: "final_12_Yellow-billed Grosbeak.wav",        xFrac: 0.88, yFrac: 0.28 },
+  // 상단 줄 (yFrac ≈ 0.10)
+  { name: "Rufous-tailed Robin",     file: "finalize_5_Rufous-tailed Robin.wav",         xFrac: 0.20, yFrac: 0.10 },
+  { name: "Marsh Tit",               file: "final_6_Marsh Tit.wav",                      xFrac: 0.50, yFrac: 0.10 },
+  { name: "Japanese Wood Pigeon",    file: "final11_Japanese Wodd Pigeon.wav",           xFrac: 0.80, yFrac: 0.10 },
 ];
 let sounds = [];
 
@@ -121,45 +150,69 @@ function drawGazeVisual(cx, cy, faceAlpha) {
 }
 
 // ── Sound positions ────────────────────────────────────────
-function edgePosition(hour, cx, cy, w, h, padding = 0.90) {
-  const angle = (hour / 12) * 2 * Math.PI;
-  const dx = Math.sin(angle);
-  const dy = -Math.cos(angle);
-  let t = Infinity;
-  if (dx > 0) t = Math.min(t, (w - cx) / dx);
-  if (dx < 0) t = Math.min(t, -cx / dx);
-  if (dy > 0) t = Math.min(t, (h - cy) / dy);
-  if (dy < 0) t = Math.min(t, -cy / dy);
-  return { x: cx + t * dx * padding, y: cy + t * dy * padding };
-}
-
 function computeSoundPositions() {
-  const cx = canvas.width / 2, cy = canvas.height / 2;
   sounds.forEach(s => {
-    const p = edgePosition(s.hour, cx, cy, canvas.width, canvas.height);
-    s.x = p.x; s.y = p.y;
+    s.x = s.xFrac * canvas.width;
+    s.y = s.yFrac * canvas.height;
   });
 }
 
-// 테스트용: 소리 위치 점 + 이름
-function drawSoundPositions() {
-  const cx = canvas.width / 2, cy = canvas.height / 2;
-  sounds.forEach(s => {
-    const dx = s.x - cx, dy = s.y - cy;
-    const len = Math.sqrt(dx * dx + dy * dy);
-    const nx = dx / len, ny = dy / len;
+// 캘리브레이션 중 표시되는 십자 조준핀
+// progress: 0~1 (원호가 시계방향으로 채워지며 완료를 나타냄)
+function drawCalibCrosshair(x, y, progress) {
+  const ARM = 12;  // 십자 팔 길이
+  const GAP = 4;   // 중심 공백
+  const R   = 9;   // 진행 원호 반지름
 
+  ctx.save();
+  ctx.lineWidth   = 1;
+  ctx.strokeStyle = "rgba(255,255,255,0.65)";
+
+  // 십자 팔 4개
+  ctx.beginPath();
+  ctx.moveTo(x - ARM, y); ctx.lineTo(x - GAP, y);
+  ctx.moveTo(x + GAP, y); ctx.lineTo(x + ARM, y);
+  ctx.moveTo(x, y - ARM); ctx.lineTo(x, y - GAP);
+  ctx.moveTo(x, y + GAP); ctx.lineTo(x, y + ARM);
+  ctx.stroke();
+
+  // 중심 점
+  ctx.beginPath();
+  ctx.arc(x, y, 1.5, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(255,255,255,0.65)";
+  ctx.fill();
+
+  // 배경 원 (흐림)
+  ctx.beginPath();
+  ctx.arc(x, y, R, 0, Math.PI * 2);
+  ctx.strokeStyle = "rgba(255,255,255,0.15)";
+  ctx.stroke();
+
+  // 진행 원호 (12시 방향부터 시계방향)
+  if (progress > 0) {
+    ctx.beginPath();
+    ctx.arc(x, y, R, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2);
+    ctx.strokeStyle = "rgba(255,255,255,0.80)";
+    ctx.lineWidth   = 1.5;
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+// 테스트용: 소리 위치 점 + 이름 (레이블은 점 아래쪽에 표시)
+function drawSoundPositions() {
+  sounds.forEach(s => {
     ctx.beginPath();
     ctx.arc(s.x, s.y, 4, 0, Math.PI * 2);
     ctx.fillStyle = "rgba(255,255,255,0.5)";
     ctx.fill();
 
-    const lx = s.x + nx * 18, ly = s.y + ny * 18;
     ctx.font         = "11px 'Segoe UI', sans-serif";
     ctx.fillStyle    = "rgba(255,255,255,0.55)";
-    ctx.textBaseline = Math.abs(nx) >= Math.abs(ny) ? "middle" : (ny > 0 ? "top" : "bottom");
-    ctx.textAlign    = Math.abs(nx) >= Math.abs(ny) ? (nx > 0 ? "left" : "right") : "center";
-    ctx.fillText(s.name, lx, ly);
+    ctx.textAlign    = "center";
+    ctx.textBaseline = "top";
+    ctx.fillText(s.name, s.x, s.y + 10);
   });
 }
 
@@ -169,7 +222,7 @@ function initAudio() {
     const audio = new Audio(`sounds/${encodeURIComponent(def.file)}`);
     audio.loop = true;
     audio.volume = 0.5;
-    return { audio, hour: def.hour, name: def.name, x: 0, y: 0 };
+    return { audio, name: def.name, xFrac: def.xFrac, yFrac: def.yFrac, x: 0, y: 0 };
   });
   computeSoundPositions();
 }
@@ -178,7 +231,7 @@ function startAudio() {
   if (audioStarted) return;
   audioStarted = true;
   permissionMsg.textContent = "";
-  sounds.forEach(s => s.audio.play().catch(err => console.error(`오디오 재생 실패 [${s.hour}시]:`, err)));
+  sounds.forEach(s => s.audio.play().catch(err => console.error(`오디오 재생 실패 [${s.name}]:`, err)));
 }
 
 function setupAudioUnlock() {
@@ -193,11 +246,11 @@ function setupAudioUnlock() {
 
 function updateVolumes(gazeX, gazeY) {
   const now = performance.now();
-  const cx  = canvas.width / 2, cy = canvas.height / 2;
 
-  const distFromCenter = Math.sqrt((gazeX - cx) ** 2 + (gazeY - cy) ** 2);
-  const maxDist        = Math.sqrt(cx ** 2 + cy ** 2);
-  const focusStrength  = Math.min(distFromCenter / maxDist, 1);
+  // 기준점이 화면 70% 지점이므로, 시선이 60% 위로 올라가면 소리 구간 활성화
+  const threshold    = canvas.height * 0.62;
+  const distAbove    = Math.max(0, threshold - gazeY);
+  const focusStrength = Math.min(distAbove / threshold, 1);
 
   let minDist = Infinity, closestIdx = 0;
   sounds.forEach((s, i) => {
@@ -205,7 +258,8 @@ function updateVolumes(gazeX, gazeY) {
     if (d < minDist) { minDist = d; closestIdx = i; }
   });
 
-  if (focusStrength < 0.25) {
+  if (focusStrength < 0.08) {
+    // 중앙 또는 아래쪽: 전체 50%로 복귀
     dwellSoundIndex = -1;
     sounds.forEach(s => { s.audio.volume += (0.5 - s.audio.volume) * 0.06; });
     return;
@@ -294,8 +348,39 @@ function detectLoop() {
     let pitch = (noseTip.y - faceCenterY) / faceHeight;
     // pitch = -pitch; // 위아래 반전 필요 시 주석 해제
 
-    let pointX = canvas.width  / 2 + yaw   * canvas.width  * 1.5;
-    let pointY = canvas.height / 2 + pitch * canvas.height * 2.8;
+    // ── 캘리브레이션 ──────────────────────────────────────
+    if (!isCalibrated) {
+      calibYawSum   += yaw;
+      calibPitchSum += pitch;
+      calibFrameCount++;
+
+      if (calibFrameCount >= CALIB_FRAMES) {
+        neutralYaw   = calibYawSum   / calibFrameCount;
+        neutralPitch = calibPitchSum / calibFrameCount;
+        isCalibrated = true;
+        console.log(`캘리브레이션 완료 — yaw: ${neutralYaw.toFixed(4)}, pitch: ${neutralPitch.toFixed(4)}`);
+      } else {
+        // 캘리브레이션 중: 기준점에 십자 조준핀 표시
+        drawCalibCrosshair(
+          canvas.width  * 0.5,
+          canvas.height * 0.70,
+          calibFrameCount / CALIB_FRAMES
+        );
+        requestAnimationFrame(detectLoop);
+        return;
+      }
+    }
+
+    // 개인 정면 보정값 차감 후 증폭
+    const adjYaw   = yaw   - neutralYaw;
+    const adjPitch = pitch - neutralPitch;
+
+    // 기준점: 화면 중앙이 아닌 하단 70% 지점
+    const anchorX = canvas.width  * 0.50;
+    const anchorY = canvas.height * 0.70;
+
+    let pointX = anchorX + adjYaw   * canvas.width  * 1.5;
+    let pointY = anchorY + adjPitch * canvas.height * 2.8;
     pointX = Math.max(0, Math.min(canvas.width,  pointX));
     pointY = Math.max(0, Math.min(canvas.height, pointY));
 
