@@ -3,21 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>얼굴 중앙점 추적</title>
+  <title>Face Direction Tracker</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="container">
-    <h1>얼굴 중앙점 추적</h1>
-
-    <div class="video-wrapper">
-      <video id="webcam" autoplay playsinline></video>
-      <canvas id="overlay"></canvas>
-    </div>
-
-    <p id="status">카메라 시작 버튼을 눌러주세요.</p>
-    <button id="startBtn">카메라 시작</button>
-  </div>
+  <video id="webcam" muted playsinline></video>
+  <canvas id="overlay"></canvas>
+  <p id="permissionMsg"></p>
 
   <script type="module" src="script.js"></script>
 </body>
