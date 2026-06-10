@@ -14,6 +14,11 @@ let smoothY = 0;
 let isFirstFrame = true;
 let audioStarted = false;
 
+// 시선이 특정 소리 위치에 머무는 시간을 추적 (볼륨 선형 증가용)
+let dwellSoundIndex = -1;
+let dwellStartTime  = 0;
+const DWELL_DURATION = 4000; // ms: 70% → 90% 도달 시간
+
 // 시계 방향 시간 위치 → sounds 폴더 파일 매핑
 // angle: 12시 = 상단(0), 시계 방향으로 증가
 const SOUND_DEFS = [
@@ -73,30 +78,49 @@ function setupAudioUnlock() {
 }
 
 // 시선 위치(gazeX, gazeY)에 따라 각 소리의 볼륨을 업데이트
-// - 화면 중앙: 모든 소리 0.5
-// - 가장자리로 이동: 가까운 소리는 커지고, 나머지는 작아짐
+// - 화면 중앙(focusStrength≈0): 모든 소리 50%
+// - 가장자리(focusStrength≈1): 가장 가까운 소리 70→90%, 나머지 5%
+//   (해당 위치에 머물수록 70% → 90%로 선형 증가)
 function updateVolumes(gazeX, gazeY) {
   const cx = canvas.width / 2;
   const cy = canvas.height / 2;
 
-  // 중앙에서 얼마나 멀리 있는지 (0 = 중앙, 1 = 최대 거리)
   const gazeFromCenter = Math.sqrt((gazeX - cx) ** 2 + (gazeY - cy) ** 2);
   const maxDist = Math.sqrt(cx ** 2 + cy ** 2);
   const focusStrength = Math.min(gazeFromCenter / maxDist, 1);
 
-  // 각 소리까지의 거리 기반 가중치 (가까울수록 높음)
-  const sigma = maxDist * 0.55;
-  const weights = sounds.map(s => {
-    const dist = Math.sqrt((gazeX - s.x) ** 2 + (gazeY - s.y) ** 2);
-    return Math.exp(-dist / sigma);
+  // 가장 가까운 소리 인덱스
+  let minDist = Infinity;
+  let closestIdx = 0;
+  sounds.forEach((s, i) => {
+    const d = Math.sqrt((gazeX - s.x) ** 2 + (gazeY - s.y) ** 2);
+    if (d < minDist) { minDist = d; closestIdx = i; }
   });
-  const totalWeight = weights.reduce((a, b) => a + b, 0);
+
+  // 중앙 근처이면 dwell 초기화
+  const now = performance.now();
+  if (focusStrength < 0.2) {
+    dwellSoundIndex = -1;
+  } else {
+    if (closestIdx !== dwellSoundIndex) {
+      dwellSoundIndex = closestIdx;
+      dwellStartTime  = now;
+    }
+  }
+
+  // 머문 시간 비율 (0 = 막 도착, 1 = DWELL_DURATION 경과)
+  const dwellProgress = dwellSoundIndex >= 0
+    ? Math.min((now - dwellStartTime) / DWELL_DURATION, 1)
+    : 0;
+
+  // 포커스된 소리: 70% → 90% 선형 증가 / 나머지: 5%
+  const targetFocused = 0.70 + 0.20 * dwellProgress;
+  const targetOther   = 0.05;
+  const baseVol       = 0.50;
 
   sounds.forEach((s, i) => {
-    const norm = weights[i] / totalWeight; // 0~1, 합계 = 1
-    // 중앙(focusStrength=0): 모두 0.5
-    // 가장자리(focusStrength=1): 가장 가까운 소리 → 최대 1.0, 나머지 → 0에 수렴
-    const vol = 0.5 * (1 - focusStrength) + norm * focusStrength;
+    const target = (i === closestIdx) ? targetFocused : targetOther;
+    const vol = baseVol + (target - baseVol) * focusStrength;
     s.audio.volume = Math.max(0, Math.min(1, vol));
   });
 }
@@ -152,6 +176,7 @@ function detectLoop() {
 
   const results = faceLandmarker.detectForVideo(video, performance.now());
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawSoundPositions();
 
   if (results.faceLandmarks && results.faceLandmarks.length > 0) {
     const landmarks = results.faceLandmarks[0];
@@ -201,6 +226,16 @@ function detectLoop() {
   }
 
   requestAnimationFrame(detectLoop);
+}
+
+// 테스트용: 각 소리의 좌표 위치에 작은 흰색 점 표시
+function drawSoundPositions() {
+  sounds.forEach(s => {
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, 4, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255, 255, 255, 0.45)";
+    ctx.fill();
+  });
 }
 
 function drawPoint(x, y, alpha) {
