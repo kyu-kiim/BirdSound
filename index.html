@@ -1,14 +1,24 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
-<html>
+<!DOCTYPE html>
+<html lang="ko">
 <head>
-  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-  <meta http-equiv="Content-Style-Type" content="text/css">
-  <title></title>
-  <meta name="Generator" content="Cocoa HTML Writer">
-  <meta name="CocoaVersion" content="2685.4">
-  <style type="text/css">
-  </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>얼굴 중앙점 추적</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <div class="container">
+    <h1>얼굴 중앙점 추적</h1>
+
+    <div class="video-wrapper">
+      <video id="webcam" autoplay playsinline></video>
+      <canvas id="overlay"></canvas>
+    </div>
+
+    <p id="status">카메라 시작 버튼을 눌러주세요.</p>
+    <button id="startBtn">카메라 시작</button>
+  </div>
+
+  <script type="module" src="script.js"></script>
 </body>
 </html>
