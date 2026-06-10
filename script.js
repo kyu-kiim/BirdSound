@@ -12,6 +12,7 @@ let faceLandmarker = null;
 let smoothX = 0;
 let smoothY = 0;
 let isFirstFrame = true;
+let audioStarted = false;
 
 // 시계 방향 시간 위치 → sounds 폴더 파일 매핑
 // angle: 12시 = 상단(0), 시계 방향으로 증가
@@ -51,9 +52,24 @@ function initAudio() {
 }
 
 function startAudio() {
+  if (audioStarted) return;
+  audioStarted = true;
+  permissionMsg.textContent = "";
   sounds.forEach(s => {
     s.audio.play().catch(err => console.error(`오디오 재생 실패 [${s.hour}시]:`, err));
   });
+}
+
+// 브라우저 Autoplay 정책: 오디오는 사용자 직접 인터랙션(클릭/탭) 이후에만 재생 가능.
+// 첫 클릭/탭 시 오디오를 시작하고 안내 문구를 숨김.
+function setupAudioUnlock() {
+  const unlock = () => {
+    startAudio();
+    window.removeEventListener("click", unlock);
+    window.removeEventListener("touchend", unlock);
+  };
+  window.addEventListener("click", unlock);
+  window.addEventListener("touchend", unlock);
 }
 
 // 시선 위치(gazeX, gazeY)에 따라 각 소리의 볼륨을 업데이트
@@ -124,7 +140,6 @@ async function startCamera() {
 
   video.addEventListener("loadeddata", () => {
     console.log("얼굴 방향 추적 중...");
-    startAudio();
     detectLoop();
   });
 }
@@ -213,13 +228,16 @@ function drawPoint(x, y, alpha) {
 async function startApp() {
   try {
     initAudio();
+    setupAudioUnlock();
+    permissionMsg.textContent = "Click anywhere to start audio";
     await initModel();
     await startCamera();
   } catch (err) {
     if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
       permissionMsg.textContent = "Camera permission required";
+    } else {
+      console.error("앱 초기화 실패:", err);
     }
-    console.error("앱 초기화 실패:", err);
   }
 }
 
