@@ -88,15 +88,15 @@ function calcRMS(buffer) {
 // 상단 3개 (고개 약 20° 이상): 동일 원칙
 const SOUND_DEFS = [
   // 하단 줄 (yFrac 0.30) — 좌 → 우 순서, 간격 약 20%씩 균등
-  { name: "Grey-headed Woodpecker",  file: "left_Grey-headed Woodpecker .wav",           xFrac: 0.10, yFrac: 0.48 },
-  { name: "Japanese Bush Warbler",   file: "left_japanese bush warbler.wav",              xFrac: 0.28, yFrac: 0.48 },
-  { name: "Marsh Tit",               file: "final_6_Marsh Tit.wav",                      xFrac: 0.50, yFrac: 0.48 },
-  { name: "Manchurian Bush Warbler", file: "right_3_Manchurian Bush Warbler .wav",       xFrac: 0.72, yFrac: 0.48 },
-  { name: "Chinese Blackbird",       file: "right_1_Chinese Blackbird.wav",              xFrac: 0.90, yFrac: 0.48 },
+  { name: "Grey-headed Woodpecker",  file: "left_Grey-headed Woodpecker .wav",           xFrac: 0.10, yFrac: 0.57 },
+  { name: "Japanese Bush Warbler",   file: "left_japanese bush warbler.wav",              xFrac: 0.28, yFrac: 0.57 },
+  { name: "Marsh Tit",               file: "final_6_Marsh Tit.wav",                      xFrac: 0.50, yFrac: 0.57 },
+  { name: "Manchurian Bush Warbler", file: "right_3_Manchurian Bush Warbler .wav",       xFrac: 0.72, yFrac: 0.57 },
+  { name: "Chinese Blackbird",       file: "right_1_Chinese Blackbird.wav",              xFrac: 0.90, yFrac: 0.57 },
   // 상단 줄 — 좌 → 우 순서
-  { name: "Japanese Wood Pigeon",    file: "left_Japanese Wodd Pigeon.wav",              xFrac: 0.20, yFrac: 0.30 },
-  { name: "Yellow-billed Grosbeak",  file: "final_12_Yellow-billed Grosbeak.wav",        xFrac: 0.50, yFrac: 0.30 },
-  { name: "Rufous-tailed Robin",     file: "right_Rufous-tailed Robin.wav",              xFrac: 0.80, yFrac: 0.30 },
+  { name: "Japanese Wood Pigeon",    file: "left_Japanese Wodd Pigeon.wav",              xFrac: 0.20, yFrac: 0.44 },
+  { name: "Yellow-billed Grosbeak",  file: "final_12_Yellow-billed Grosbeak.wav",        xFrac: 0.50, yFrac: 0.44 },
+  { name: "Rufous-tailed Robin",     file: "right_Rufous-tailed Robin.wav",              xFrac: 0.80, yFrac: 0.44 },
 ];
 
 let sounds = [];
