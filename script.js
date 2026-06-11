@@ -462,7 +462,7 @@ function detectLoop() {
     const anchorY = canvas.height * 0.70;
 
     let pointX = anchorX + adjYaw   * canvas.width  * 1.5;
-    let pointY = anchorY + adjPitch * canvas.height * 2.8;
+    let pointY = anchorY - adjPitch * canvas.height * 2.8;
     pointX = Math.max(0, Math.min(canvas.width,  pointX));
     pointY = Math.max(0, Math.min(canvas.height, pointY));
 
