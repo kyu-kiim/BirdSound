@@ -125,6 +125,7 @@ async function startAudio() {
 
   // 사용자 인터랙션 이후에 AudioContext 생성
   audioCtx   = new (window.AudioContext || window.webkitAudioContext)();
+  await audioCtx.resume();
   masterGain = audioCtx.createGain();
   masterGain.gain.value = 0;  // 페이드인 전까지 무음
   masterGain.connect(audioCtx.destination);
@@ -211,9 +212,11 @@ const BASE_VOL   = 0.3;
 
 function setVolSmooth(s, target) {
   if (!s.volGain || !audioCtx) return;
+  const now     = audioCtx.currentTime;
   const clamped = Math.max(0, Math.min(1, target));
   const rising  = clamped > s.smoothVol;
-  s.volGain.gain.setTargetAtTime(clamped, audioCtx.currentTime, rising ? TC_ATTACK : TC_RELEASE);
+  s.volGain.gain.cancelAndHoldAtTime(now);
+  s.volGain.gain.setTargetAtTime(clamped, now, rising ? TC_ATTACK : TC_RELEASE);
   s.smoothVol = clamped;
 }
 
@@ -425,7 +428,7 @@ function detectLoop() {
 
     const faceCenterX = (leftEye.x + rightEye.x) / 2;
     const eyeDistance = Math.abs(rightEye.x - leftEye.x);
-    let yaw = -((noseTip.x - faceCenterX) / eyeDistance);
+    let yaw = (noseTip.x - faceCenterX) / eyeDistance;
 
     const faceCenterY = (betweenEyes.y + mouthCenter.y) / 2;
     const faceHeight  = Math.abs(mouthCenter.y - betweenEyes.y);
@@ -459,7 +462,7 @@ function detectLoop() {
     const anchorY = canvas.height * 0.70;
 
     let pointX = anchorX + adjYaw   * canvas.width  * 1.5;
-    let pointY = anchorY - adjPitch * canvas.height * 2.8;
+    let pointY = anchorY + adjPitch * canvas.height * 2.8;
     pointX = Math.max(0, Math.min(canvas.width,  pointX));
     pointY = Math.max(0, Math.min(canvas.height, pointY));
 
