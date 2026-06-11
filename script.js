@@ -362,6 +362,26 @@ function drawCalibCrosshair(x, y) {
   ctx.restore();
 }
 
+function drawSpecialDots() {
+  const sR = canvas.height * SPECIAL_RADIUS;
+  sounds.forEach(s => {
+    if (!s.special) return;
+    ctx.save();
+    // outer ring
+    ctx.strokeStyle = "rgba(255,255,255,0.25)";
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, sR, 0, Math.PI * 2);
+    ctx.stroke();
+    // center dot
+    ctx.fillStyle = "rgba(255,255,255,0.50)";
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  });
+}
+
 // 반경 내에 일정 시간 머물러야 이름이 서서히 등장
 function drawBirdName(gazeX, gazeY, dt) {
   const NORMAL_R    = canvas.height * 0.09;
@@ -473,7 +493,7 @@ function detectLoop() {
       const reW = Math.abs(rightEye.x - riIn.x) || 0.01;
       const leH = Math.abs(lm[145].y  - lm[159].y) || 0.01;
       const reH = Math.abs(lm[374].y  - lm[386].y) || 0.01;
-      irisRawX = -(
+      irisRawX = (
         (liC.x - (leftEye.x  + liIn.x) / 2) / leW +
         (riC.x - (rightEye.x + riIn.x) / 2) / reW
       ) / 2;
@@ -543,6 +563,7 @@ function detectLoop() {
     convergeFactor = gazeConvergeTime / CONVERGE_DELAY;
 
     updateVolumes(smoothX, smoothY);
+    drawSpecialDots();
     drawGazeVisual(smoothX, smoothY, 1.0);
     drawBirdName(smoothX, smoothY, dt);
   } else {
