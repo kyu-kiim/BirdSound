@@ -237,11 +237,7 @@ function setVolSmooth(s, target) {
 function updateVolumes(gazeX, gazeY) {
   const now = performance.now();
 
-  // ── 일반 소리: Voronoi + dwell ───────────────────────────
-  const threshold     = canvas.height * 0.40;
-  const distAbove     = Math.max(0, threshold - gazeY);
-  const focusStrength = Math.min(distAbove / threshold, 1);
-
+  // ── 일반 소리: 거리 기반 연속 볼륨 ─────────────────────────
   let minDist = Infinity, closestIdx = -1;
   sounds.forEach((s, i) => {
     if (s.special) return;
@@ -249,24 +245,22 @@ function updateVolumes(gazeX, gazeY) {
     if (d < minDist) { minDist = d; closestIdx = i; }
   });
 
-  if (focusStrength < 0.08 || closestIdx === -1) {
-    dwellSoundIndex = -1;
-    sounds.forEach(s => { if (!s.special) setVolSmooth(s, BASE_VOL); });
-  } else {
-    if (closestIdx !== dwellSoundIndex) {
-      dwellSoundIndex = closestIdx;
-      dwellStartTime  = now;
-    }
-    const dwellProgress  = Math.min((now - dwellStartTime) / DWELL_DURATION, 1);
-    const targetFocused  = 0.75 + 0.20 * dwellProgress;
-    // 거리 기반 감쇠: 가까울수록 나머지 소리가 더 빠르게 줄어듦
-    const influenceR     = canvas.height * 0.38;
-    const proximity      = Math.max(0, 1 - minDist / influenceR); // 0=멀다, 1=중심
-    const targetOthers   = Math.max(0.05, BASE_VOL * Math.pow(1 - proximity, 2.5));
-    sounds.forEach((s, i) => {
-      if (!s.special) setVolSmooth(s, (i === closestIdx) ? targetFocused : targetOthers);
-    });
+  if (closestIdx === -1) return;
+
+  if (closestIdx !== dwellSoundIndex) {
+    dwellSoundIndex = closestIdx;
+    dwellStartTime  = now;
   }
+  const dwellProgress = Math.min((now - dwellStartTime) / DWELL_DURATION, 1);
+
+  // 가까울수록 focused 소리가 커지고 나머지는 줄어듦 (항상 적용)
+  const influenceR  = canvas.height * 0.55;
+  const proximity   = Math.max(0, 1 - minDist / influenceR); // 0=멀다, 1=중심
+  const targetFocused = BASE_VOL + (0.75 + 0.20 * dwellProgress - BASE_VOL) * Math.pow(proximity, 1.2);
+  const targetOthers  = Math.max(0.05, BASE_VOL * Math.pow(1 - proximity, 2.0));
+  sounds.forEach((s, i) => {
+    if (!s.special) setVolSmooth(s, (i === closestIdx) ? targetFocused : targetOthers);
+  });
 
   // ── 특수 소리: 정밀 거리 기반 ────────────────────────────
   const sR = canvas.height * SPECIAL_RADIUS;
