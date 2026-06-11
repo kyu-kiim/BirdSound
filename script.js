@@ -93,10 +93,10 @@ const SOUND_DEFS = [
   { name: "Marsh Tit",               file: "final_6_Marsh Tit.wav",                      xFrac: 0.50, yFrac: 0.32 },
   { name: "Manchurian Bush Warbler", file: "right_3_Manchurian Bush Warbler .wav",       xFrac: 0.72, yFrac: 0.32 },
   { name: "Chinese Blackbird",       file: "right_1_Chinese Blackbird.wav",              xFrac: 0.90, yFrac: 0.32 },
-  // 상단 줄 — 좌 → 우 순서
-  { name: "Japanese Wood Pigeon",    file: "left_Japanese Wodd Pigeon.wav",              xFrac: 0.20, yFrac: 0.18 },
-  { name: "Yellow-billed Grosbeak",  file: "final_12_Yellow-billed Grosbeak.wav",        xFrac: 0.50, yFrac: 0.18 },
-  { name: "Rufous-tailed Robin",     file: "right_Rufous-tailed Robin.wav",              xFrac: 0.80, yFrac: 0.18 },
+  // 상단 줄 (special) — 15° 이상 고개를 올려야 하는 정밀 소리
+  { name: "Japanese Wood Pigeon",    file: "left_Japanese Wodd Pigeon.wav",              xFrac: 0.20, yFrac: 0.10, special: true },
+  { name: "Yellow-billed Grosbeak",  file: "final_12_Yellow-billed Grosbeak.wav",        xFrac: 0.50, yFrac: 0.10, special: true },
+  { name: "Rufous-tailed Robin",     file: "right_Rufous-tailed Robin.wav",              xFrac: 0.80, yFrac: 0.10, special: true },
 ];
 
 let sounds = [];
@@ -115,11 +115,13 @@ function initAudio() {
     file:      def.file,
     xFrac:     def.xFrac,
     yFrac:     def.yFrac,
+    special:   def.special || false,
     x: 0, y: 0,
-    smoothVol: 0.3,
-    normGain:  null,   // GainNode: 정규화 고정값
-    volGain:   null,   // GainNode: 동적 볼륨 제어
-    source:    null,   // AudioBufferSourceNode
+    smoothVol: def.special ? 0.10 : 0.30,
+    nameDwell: 0,
+    normGain:  null,
+    volGain:   null,
+    source:    null,
   }));
   computeSoundPositions();
 }
@@ -178,7 +180,7 @@ async function startAudio() {
 
     // 볼륨 제어 gain (동적, 0~1)
     const volGain = audioCtx.createGain();
-    volGain.gain.value = 0.3;
+    volGain.gain.value = s.special ? 0.10 : 0.30;
 
     // 루프 소스
     const source = audioCtx.createBufferSource();
@@ -212,9 +214,11 @@ function setupAudioUnlock() {
 // Vol 전환에 쓸 시정수(time constant):
 //   attack (소리 커질 때): 0.08s — 빠른 반응
 //   release (소리 작아질 때): 0.18s — 부드러운 감쇠, 순간 공백 방지
-const TC_ATTACK  = 0.08;
-const TC_RELEASE = 0.18;
-const BASE_VOL   = 0.3;
+const TC_ATTACK       = 0.08;
+const TC_RELEASE      = 0.18;
+const BASE_VOL        = 0.30;
+const SPECIAL_BASE_VOL = 0.10;
+const SPECIAL_RADIUS  = 0.055; // canvas.height 비율 — 정밀 도달 반경
 
 function setVolSmooth(s, target) {
   if (!s.volGain || !audioCtx) return;
@@ -229,32 +233,44 @@ function setVolSmooth(s, target) {
 function updateVolumes(gazeX, gazeY) {
   const now = performance.now();
 
-  const threshold    = canvas.height * 0.40;
-  const distAbove    = Math.max(0, threshold - gazeY);
+  // ── 일반 소리: Voronoi + dwell ───────────────────────────
+  const threshold     = canvas.height * 0.40;
+  const distAbove     = Math.max(0, threshold - gazeY);
   const focusStrength = Math.min(distAbove / threshold, 1);
 
-  let minDist = Infinity, closestIdx = 0;
+  let minDist = Infinity, closestIdx = -1;
   sounds.forEach((s, i) => {
+    if (s.special) return;
     const d = Math.sqrt((gazeX - s.x) ** 2 + (gazeY - s.y) ** 2);
     if (d < minDist) { minDist = d; closestIdx = i; }
   });
 
-  if (focusStrength < 0.08) {
+  if (focusStrength < 0.08 || closestIdx === -1) {
     dwellSoundIndex = -1;
-    sounds.forEach(s => setVolSmooth(s, BASE_VOL));
-    return;
+    sounds.forEach(s => { if (!s.special) setVolSmooth(s, BASE_VOL); });
+  } else {
+    if (closestIdx !== dwellSoundIndex) {
+      dwellSoundIndex = closestIdx;
+      dwellStartTime  = now;
+    }
+    const dwellProgress = Math.min((now - dwellStartTime) / DWELL_DURATION, 1);
+    const targetFocused = 0.70 + 0.20 * dwellProgress;
+    sounds.forEach((s, i) => {
+      if (!s.special) setVolSmooth(s, (i === closestIdx) ? targetFocused : 0.02);
+    });
   }
 
-  if (closestIdx !== dwellSoundIndex) {
-    dwellSoundIndex = closestIdx;
-    dwellStartTime  = now;
-  }
-
-  const dwellProgress = Math.min((now - dwellStartTime) / DWELL_DURATION, 1);
-  const targetFocused = 0.70 + 0.20 * dwellProgress;
-
-  sounds.forEach((s, i) => {
-    setVolSmooth(s, (i === closestIdx) ? targetFocused : 0.02);
+  // ── 특수 소리: 정밀 거리 기반 ────────────────────────────
+  const sR = canvas.height * SPECIAL_RADIUS;
+  sounds.forEach(s => {
+    if (!s.special) return;
+    const d = Math.sqrt((gazeX - s.x) ** 2 + (gazeY - s.y) ** 2);
+    if (d < sR) {
+      const t = Math.pow(1 - d / sR, 2);
+      setVolSmooth(s, SPECIAL_BASE_VOL + (0.90 - SPECIAL_BASE_VOL) * t);
+    } else {
+      setVolSmooth(s, SPECIAL_BASE_VOL);
+    }
   });
 }
 
@@ -346,20 +362,34 @@ function drawCalibCrosshair(x, y) {
   ctx.restore();
 }
 
-// 시선이 소리 위치 위에 있을 때만 새 이름 표시
-function drawBirdName(gazeX, gazeY) {
-  const RADIUS = canvas.height * 0.09;
+// 반경 내에 일정 시간 머물러야 이름이 서서히 등장
+function drawBirdName(gazeX, gazeY, dt) {
+  const NORMAL_R    = canvas.height * 0.09;
+  const sR          = canvas.height * SPECIAL_RADIUS;
+  const DWELL_IN    = 1000;  // ms — 완전히 나타나기까지
+  const DWELL_OUT   = 500;   // ms — 완전히 사라지기까지
+  const DECAY_RATE  = DWELL_IN / DWELL_OUT; // 나갈 때 더 빨리 사라짐
+
   sounds.forEach(s => {
     const d = Math.sqrt((gazeX - s.x) ** 2 + (gazeY - s.y) ** 2);
-    if (d >= RADIUS) return;
-    const alpha = Math.pow(1 - d / RADIUS, 2);
+    const r = s.special ? sR : NORMAL_R;
+
+    if (d < r) {
+      s.nameDwell = Math.min(s.nameDwell + dt, DWELL_IN);
+    } else {
+      s.nameDwell = Math.max(s.nameDwell - dt * DECAY_RATE, 0);
+    }
+
+    const alpha = Math.pow(s.nameDwell / DWELL_IN, 1.5);
+    if (alpha < 0.01) return;
+
     ctx.save();
-    ctx.globalAlpha      = alpha;
-    ctx.font             = "13px 'Segoe UI', sans-serif";
-    ctx.fillStyle        = "white";
-    ctx.textAlign        = "center";
-    ctx.textBaseline     = "middle";
-    ctx.letterSpacing    = "0.06em";
+    ctx.globalAlpha   = alpha;
+    ctx.font          = s.special ? "italic 11px 'Segoe UI', sans-serif" : "13px 'Segoe UI', sans-serif";
+    ctx.fillStyle     = "white";
+    ctx.textAlign     = "center";
+    ctx.textBaseline  = "middle";
+    ctx.letterSpacing = "0.06em";
     ctx.fillText(s.name, s.x, s.y);
     ctx.restore();
   });
@@ -485,7 +515,9 @@ function detectLoop() {
     const anchorX = canvas.width  * 0.50;
     const anchorY = canvas.height * 0.45;
 
-    let pointX = anchorX - adjYaw   * canvas.width  * 1.5  - adjIrisX * canvas.width  * 0.15;
+    // 맥 전면카메라는 수평 미러 → yaw 부호 반전 필요 (leading minus) → pointX는 +adjYaw
+    // 수직축은 미러 무관 → pointY는 -adjPitch (위를 보면 pointY 감소 = 화면 위)
+    let pointX = anchorX + adjYaw   * canvas.width  * 1.5  + adjIrisX * canvas.width  * 0.15;
     let pointY = anchorY - adjPitch * canvas.height * 2.8  + adjIrisY * canvas.height * 0.12;
     pointX = Math.max(0, Math.min(canvas.width,  pointX));
     pointY = Math.max(0, Math.min(canvas.height, pointY));
@@ -512,7 +544,7 @@ function detectLoop() {
 
     updateVolumes(smoothX, smoothY);
     drawGazeVisual(smoothX, smoothY, 1.0);
-    drawBirdName(smoothX, smoothY);
+    drawBirdName(smoothX, smoothY, dt);
   } else {
     gazeConvergeTime = Math.max(gazeConvergeTime - dt * SCATTER_DECAY, 0);
     convergeFactor   = gazeConvergeTime / CONVERGE_DELAY;
