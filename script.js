@@ -94,9 +94,11 @@ const SOUND_DEFS = [
   { name: "Manchurian Bush Warbler", file: "right_3_Manchurian Bush Warbler .wav",       xFrac: 0.72, yFrac: 0.32 },
   { name: "Chinese Blackbird",       file: "right_1_Chinese Blackbird.wav",              xFrac: 0.90, yFrac: 0.32 },
   // 상단 줄 (special) — 15° 이상 고개를 올려야 하는 정밀 소리
-  { name: "Japanese Wood Pigeon",    file: "left_Japanese Wodd Pigeon.wav",              xFrac: 0.20, yFrac: 0.10, special: true },
+  { name: "Japanese Wood Pigeon",    file: "left_Japanese Wodd Pigeon.wav",              xFrac: 0.10, yFrac: 0.10, special: true },
+  { name: "Azure-winged Magpie",     file: "top_Azure-winged Magpie.wav",                xFrac: 0.28, yFrac: 0.10, special: true, showDot: true },
   { name: "Yellow-billed Grosbeak",  file: "final_12_Yellow-billed Grosbeak.wav",        xFrac: 0.50, yFrac: 0.10, special: true },
-  { name: "Rufous-tailed Robin",     file: "right_Rufous-tailed Robin.wav",              xFrac: 0.80, yFrac: 0.10, special: true },
+  { name: "Black-naped Oriole",      file: "finalize_top_black naped oriolewav.wav",     xFrac: 0.72, yFrac: 0.10, special: true, showDot: true },
+  { name: "Rufous-tailed Robin",     file: "right_Rufous-tailed Robin.wav",              xFrac: 0.90, yFrac: 0.10, special: true },
 ];
 
 let sounds = [];
@@ -362,19 +364,11 @@ function drawCalibCrosshair(x, y) {
   ctx.restore();
 }
 
-function drawSpecialDots() {
-  const sR = canvas.height * SPECIAL_RADIUS;
+function drawTopDots() {
   sounds.forEach(s => {
-    if (!s.special) return;
+    if (!s.showDot) return;
     ctx.save();
-    // outer ring
-    ctx.strokeStyle = "rgba(255,255,255,0.25)";
-    ctx.lineWidth = 0.8;
-    ctx.beginPath();
-    ctx.arc(s.x, s.y, sR, 0, Math.PI * 2);
-    ctx.stroke();
-    // center dot
-    ctx.fillStyle = "rgba(255,255,255,0.50)";
+    ctx.fillStyle = "rgba(255,255,255,0.45)";
     ctx.beginPath();
     ctx.arc(s.x, s.y, 2.5, 0, Math.PI * 2);
     ctx.fill();
@@ -563,7 +557,7 @@ function detectLoop() {
     convergeFactor = gazeConvergeTime / CONVERGE_DELAY;
 
     updateVolumes(smoothX, smoothY);
-    drawSpecialDots();
+    drawTopDots();
     drawGazeVisual(smoothX, smoothY, 1.0);
     drawBirdName(smoothX, smoothY, dt);
   } else {
