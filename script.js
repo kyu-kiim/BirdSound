@@ -560,7 +560,6 @@ function detectLoop() {
     convergeFactor = gazeConvergeTime / CONVERGE_DELAY;
 
     updateVolumes(smoothX, smoothY);
-    drawTopDots();
     drawGazeVisual(smoothX, smoothY, 1.0);
     drawBirdName(smoothX, smoothY, dt);
   } else {
