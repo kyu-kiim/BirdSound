@@ -475,7 +475,8 @@ function detectLoop() {
 
     const faceCenterX = (leftEye.x + rightEye.x) / 2;
     const eyeDistance = Math.abs(rightEye.x - leftEye.x);
-    let yaw = (noseTip.x - faceCenterX) / eyeDistance;
+    // Mac 전면 카메라는 수평 미러 → MediaPipe x 좌표도 미러됨 → minus 필수. 절대 제거 금지.
+    let yaw = -((noseTip.x - faceCenterX) / eyeDistance);
 
     const faceCenterY = (betweenEyes.y + mouthCenter.y) / 2;
     const faceHeight  = Math.abs(mouthCenter.y - betweenEyes.y);
@@ -491,7 +492,8 @@ function detectLoop() {
       const reW = Math.abs(rightEye.x - riIn.x) || 0.01;
       const leH = Math.abs(lm[145].y  - lm[159].y) || 0.01;
       const reH = Math.abs(lm[374].y  - lm[386].y) || 0.01;
-      irisRawX = (
+      // 카메라 미러 보정 → yaw와 동일하게 minus 필수. 절대 제거 금지.
+      irisRawX = -(
         (liC.x - (leftEye.x  + liIn.x) / 2) / leW +
         (riC.x - (rightEye.x + riIn.x) / 2) / reW
       ) / 2;
@@ -533,7 +535,7 @@ function detectLoop() {
     const anchorX = canvas.width  * 0.50;
     const anchorY = canvas.height * 0.45;
 
-    // 맥 전면카메라는 수평 미러 → yaw 부호 반전 필요 (leading minus) → pointX는 +adjYaw
+    // yaw/irisRawX 모두 leading minus로 미러 보정 완료 → pointX는 +adjYaw, +adjIrisX 그대로 유지.
     // 수직축은 미러 무관 → pointY는 -adjPitch (위를 보면 pointY 감소 = 화면 위)
     let pointX = anchorX + adjYaw   * canvas.width  * 1.5  + adjIrisX * canvas.width  * 0.15;
     let pointY = anchorY - adjPitch * canvas.height * 2.8  + adjIrisY * canvas.height * 0.12;
