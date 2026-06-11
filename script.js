@@ -437,7 +437,7 @@ function detectLoop() {
 
     // ── 캘리브레이션 ──────────────────────────────────────
     if (!isCalibrated) {
-      calibYawSum   += yaw;
+      calibYawSum   += -yaw;
       calibPitchSum += pitch;
       calibFrameCount++;
 
