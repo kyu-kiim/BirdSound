@@ -18,15 +18,21 @@ let isFirstFrame = true;
 const CALIB_FRAMES  = 90;
 let neutralYaw      = 0;
 let neutralPitch    = 0;
+let neutralIrisX    = 0;
+let neutralIrisY    = 0;
 let isCalibrated    = false;
 let calibYawSum     = 0;
 let calibPitchSum   = 0;
+let calibIrisXSum   = 0;
+let calibIrisYSum   = 0;
 let calibFrameCount = 0;
 
 function resetCalibration() {
   isCalibrated    = false;
   calibYawSum     = 0;
   calibPitchSum   = 0;
+  calibIrisXSum   = 0;
+  calibIrisYSum   = 0;
   calibFrameCount = 0;
   console.log("캘리브레이션 재시작");
 }
@@ -349,19 +355,22 @@ function drawCalibCrosshair(x, y) {
   ctx.restore();
 }
 
-// 테스트용: 소리 위치 점 + 이름
-function drawSoundPositions() {
+// 시선이 소리 위치 위에 있을 때만 새 이름 표시
+function drawBirdName(gazeX, gazeY) {
+  const RADIUS = canvas.height * 0.09;
   sounds.forEach(s => {
-    ctx.beginPath();
-    ctx.arc(s.x, s.y, 4, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(255,255,255,0.5)";
-    ctx.fill();
-
-    ctx.font         = "11px 'Segoe UI', sans-serif";
-    ctx.fillStyle    = "rgba(255,255,255,0.55)";
-    ctx.textAlign    = "center";
-    ctx.textBaseline = "top";
-    ctx.fillText(s.name, s.x, s.y + 10);
+    const d = Math.sqrt((gazeX - s.x) ** 2 + (gazeY - s.y) ** 2);
+    if (d >= RADIUS) return;
+    const alpha = Math.pow(1 - d / RADIUS, 2);
+    ctx.save();
+    ctx.globalAlpha      = alpha;
+    ctx.font             = "13px 'Segoe UI', sans-serif";
+    ctx.fillStyle        = "white";
+    ctx.textAlign        = "center";
+    ctx.textBaseline     = "middle";
+    ctx.letterSpacing    = "0.06em";
+    ctx.fillText(s.name, s.x, s.y);
+    ctx.restore();
   });
 }
 
@@ -415,7 +424,6 @@ function detectLoop() {
 
   const results = faceLandmarker.detectForVideo(video, now);
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  drawSoundPositions();
 
   if (results.faceLandmarks && results.faceLandmarks.length > 0) {
     const lm = results.faceLandmarks[0];
@@ -433,17 +441,40 @@ function detectLoop() {
     const faceCenterY = (betweenEyes.y + mouthCenter.y) / 2;
     const faceHeight  = Math.abs(mouthCenter.y - betweenEyes.y);
     let pitch = (noseTip.y - faceCenterY) / faceHeight;
-    pitch = -pitch; // 고개를 올릴수록 점이 위로 이동
+    pitch = -pitch;
+
+    // 홍채 보정값 (yaw 부호 관례에 맞춰 X 반전)
+    let irisRawX = 0, irisRawY = 0;
+    if (lm.length > 477) {
+      const liC = lm[468], riC = lm[473];
+      const liIn = lm[133], riIn = lm[362];
+      const leW = Math.abs(leftEye.x  - liIn.x) || 0.01;
+      const reW = Math.abs(rightEye.x - riIn.x) || 0.01;
+      const leH = Math.abs(lm[145].y  - lm[159].y) || 0.01;
+      const reH = Math.abs(lm[374].y  - lm[386].y) || 0.01;
+      irisRawX = -(
+        (liC.x - (leftEye.x  + liIn.x) / 2) / leW +
+        (riC.x - (rightEye.x + riIn.x) / 2) / reW
+      ) / 2;
+      irisRawY = (
+        (liC.y - (lm[159].y + lm[145].y) / 2) / leH +
+        (riC.y - (lm[386].y + lm[374].y) / 2) / reH
+      ) / 2;
+    }
 
     // ── 캘리브레이션 ──────────────────────────────────────
     if (!isCalibrated) {
-      calibYawSum   += -yaw;
+      calibYawSum   += yaw;
       calibPitchSum += pitch;
+      calibIrisXSum += irisRawX;
+      calibIrisYSum += irisRawY;
       calibFrameCount++;
 
       if (calibFrameCount >= CALIB_FRAMES) {
         neutralYaw   = calibYawSum   / calibFrameCount;
         neutralPitch = calibPitchSum / calibFrameCount;
+        neutralIrisX = calibIrisXSum / calibFrameCount;
+        neutralIrisY = calibIrisYSum / calibFrameCount;
         isCalibrated = true;
         console.log(`캘리브레이션 완료 — yaw: ${neutralYaw.toFixed(4)}, pitch: ${neutralPitch.toFixed(4)}`);
       } else {
@@ -454,15 +485,17 @@ function detectLoop() {
     }
 
     // 개인 정면 보정값 차감 후 증폭
-    const adjYaw   = yaw   - neutralYaw;
-    const adjPitch = pitch - neutralPitch;
+    const adjYaw   = yaw       - neutralYaw;
+    const adjPitch = pitch     - neutralPitch;
+    const adjIrisX = irisRawX  - neutralIrisX;
+    const adjIrisY = irisRawY  - neutralIrisY;
 
     // 기준점: 화면 하단 70%
     const anchorX = canvas.width  * 0.50;
     const anchorY = canvas.height * 0.70;
 
-    let pointX = anchorX + adjYaw   * canvas.width  * 1.5;
-    let pointY = anchorY - adjPitch * canvas.height * 2.8;
+    let pointX = anchorX - adjYaw   * canvas.width  * 1.5  - adjIrisX * canvas.width  * 0.15;
+    let pointY = anchorY - adjPitch * canvas.height * 2.8  + adjIrisY * canvas.height * 0.12;
     pointX = Math.max(0, Math.min(canvas.width,  pointX));
     pointY = Math.max(0, Math.min(canvas.height, pointY));
 
@@ -487,12 +520,10 @@ function detectLoop() {
     convergeFactor = gazeConvergeTime / CONVERGE_DELAY;
 
     updateVolumes(smoothX, smoothY);
-    drawGazeVisual(smoothX, smoothY, 1.0);
+    drawBirdName(smoothX, smoothY);
   } else {
-    console.log("얼굴을 찾는 중...");
     gazeConvergeTime = Math.max(gazeConvergeTime - dt * SCATTER_DECAY, 0);
     convergeFactor   = gazeConvergeTime / CONVERGE_DELAY;
-    drawGazeVisual(smoothX, smoothY, 0.15);
   }
 
   requestAnimationFrame(detectLoop);
