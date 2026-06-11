@@ -428,7 +428,7 @@ function detectLoop() {
 
     const faceCenterX = (leftEye.x + rightEye.x) / 2;
     const eyeDistance = Math.abs(rightEye.x - leftEye.x);
-    let yaw = (noseTip.x - faceCenterX) / eyeDistance;
+    let yaw = -((noseTip.x - faceCenterX) / eyeDistance);
 
     const faceCenterY = (betweenEyes.y + mouthCenter.y) / 2;
     const faceHeight  = Math.abs(mouthCenter.y - betweenEyes.y);
