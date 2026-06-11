@@ -95,9 +95,9 @@ const SOUND_DEFS = [
   { name: "Chinese Blackbird",       file: "right_1_Chinese Blackbird.wav",              xFrac: 0.90, yFrac: 0.32 },
   // 상단 줄 (special) — 15° 이상 고개를 올려야 하는 정밀 소리
   { name: "Japanese Wood Pigeon",    file: "left_Japanese Wodd Pigeon.wav",              xFrac: 0.10, yFrac: 0.10, special: true },
-  { name: "Azure-winged Magpie",     file: "top_Azure-winged Magpie.wav",                xFrac: 0.28, yFrac: 0.10, special: true, showDot: true },
+  { name: "Azure-winged Magpie",     file: "top_Azure-winged Magpie.wav",                xFrac: 0.28, yFrac: 0.10, special: true, showDot: true, baseVol: 0.01 },
   { name: "Yellow-billed Grosbeak",  file: "final_12_Yellow-billed Grosbeak.wav",        xFrac: 0.50, yFrac: 0.10, special: true },
-  { name: "Black-naped Oriole",      file: "finalize_top_black naped oriolewav.wav",     xFrac: 0.72, yFrac: 0.10, special: true, showDot: true },
+  { name: "Black-naped Oriole",      file: "finalize_top_black naped oriolewav.wav",     xFrac: 0.72, yFrac: 0.10, special: true, showDot: true, baseVol: 0.01 },
   { name: "Rufous-tailed Robin",     file: "right_Rufous-tailed Robin.wav",              xFrac: 0.90, yFrac: 0.10, special: true },
 ];
 
@@ -118,8 +118,10 @@ function initAudio() {
     xFrac:     def.xFrac,
     yFrac:     def.yFrac,
     special:   def.special || false,
+    showDot:   def.showDot  || false,
+    baseVol:   def.baseVol  != null ? def.baseVol : (def.special ? 0.10 : 0.30),
     x: 0, y: 0,
-    smoothVol: def.special ? 0.10 : 0.30,
+    smoothVol: def.baseVol  != null ? def.baseVol : (def.special ? 0.10 : 0.30),
     nameDwell: 0,
     normGain:  null,
     volGain:   null,
@@ -182,7 +184,7 @@ async function startAudio() {
 
     // 볼륨 제어 gain (동적, 0~1)
     const volGain = audioCtx.createGain();
-    volGain.gain.value = s.special ? 0.10 : 0.30;
+    volGain.gain.value = s.baseVol;
 
     // 루프 소스
     const source = audioCtx.createBufferSource();
@@ -256,11 +258,11 @@ function updateVolumes(gazeX, gazeY) {
       dwellStartTime  = now;
     }
     const dwellProgress  = Math.min((now - dwellStartTime) / DWELL_DURATION, 1);
-    const targetFocused  = 0.70 + 0.20 * dwellProgress;
+    const targetFocused  = 0.75 + 0.20 * dwellProgress;
     // 거리 기반 감쇠: 가까울수록 나머지 소리가 더 빠르게 줄어듦
     const influenceR     = canvas.height * 0.38;
     const proximity      = Math.max(0, 1 - minDist / influenceR); // 0=멀다, 1=중심
-    const targetOthers   = Math.max(0.10, BASE_VOL * Math.pow(1 - proximity, 2.2));
+    const targetOthers   = Math.max(0.05, BASE_VOL * Math.pow(1 - proximity, 2.5));
     sounds.forEach((s, i) => {
       if (!s.special) setVolSmooth(s, (i === closestIdx) ? targetFocused : targetOthers);
     });
@@ -271,11 +273,12 @@ function updateVolumes(gazeX, gazeY) {
   sounds.forEach(s => {
     if (!s.special) return;
     const d = Math.sqrt((gazeX - s.x) ** 2 + (gazeY - s.y) ** 2);
+    const bv = s.baseVol;
     if (d < sR) {
       const t = Math.pow(1 - d / sR, 2);
-      setVolSmooth(s, SPECIAL_BASE_VOL + (0.90 - SPECIAL_BASE_VOL) * t);
+      setVolSmooth(s, bv + (0.90 - bv) * t);
     } else {
-      setVolSmooth(s, SPECIAL_BASE_VOL);
+      setVolSmooth(s, bv);
     }
   });
 }
