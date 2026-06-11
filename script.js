@@ -255,10 +255,14 @@ function updateVolumes(gazeX, gazeY) {
       dwellSoundIndex = closestIdx;
       dwellStartTime  = now;
     }
-    const dwellProgress = Math.min((now - dwellStartTime) / DWELL_DURATION, 1);
-    const targetFocused = 0.70 + 0.20 * dwellProgress;
+    const dwellProgress  = Math.min((now - dwellStartTime) / DWELL_DURATION, 1);
+    const targetFocused  = 0.70 + 0.20 * dwellProgress;
+    // 거리 기반 감쇠: 가까울수록 나머지 소리가 더 빠르게 줄어듦
+    const influenceR     = canvas.height * 0.38;
+    const proximity      = Math.max(0, 1 - minDist / influenceR); // 0=멀다, 1=중심
+    const targetOthers   = Math.max(0.10, BASE_VOL * Math.pow(1 - proximity, 2.2));
     sounds.forEach((s, i) => {
-      if (!s.special) setVolSmooth(s, (i === closestIdx) ? targetFocused : 0.02);
+      if (!s.special) setVolSmooth(s, (i === closestIdx) ? targetFocused : targetOthers);
     });
   }
 
