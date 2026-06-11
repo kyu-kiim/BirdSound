@@ -88,15 +88,15 @@ function calcRMS(buffer) {
 // 상단 3개 (고개 약 20° 이상): 동일 원칙
 const SOUND_DEFS = [
   // 하단 줄 (yFrac 0.30) — 좌 → 우 순서, 간격 약 20%씩 균등
-  { name: "Grey-headed Woodpecker",  file: "left_Grey-headed Woodpecker .wav",           xFrac: 0.10, yFrac: 0.30 },
-  { name: "Japanese Bush Warbler",   file: "left_japanese bush warbler.wav",              xFrac: 0.28, yFrac: 0.30 },
-  { name: "Marsh Tit",               file: "final_6_Marsh Tit.wav",                      xFrac: 0.50, yFrac: 0.30 },
-  { name: "Manchurian Bush Warbler", file: "right_3_Manchurian Bush Warbler .wav",       xFrac: 0.72, yFrac: 0.30 },
-  { name: "Chinese Blackbird",       file: "right_1_Chinese Blackbird.wav",              xFrac: 0.90, yFrac: 0.30 },
-  // 상단 줄 (yFrac 0.10) — 좌 → 우 순서
-  { name: "Japanese Wood Pigeon",    file: "left_Japanese Wodd Pigeon.wav",              xFrac: 0.20, yFrac: 0.10 },
-  { name: "Yellow-billed Grosbeak",  file: "final_12_Yellow-billed Grosbeak.wav",        xFrac: 0.50, yFrac: 0.10 },
-  { name: "Rufous-tailed Robin",     file: "right_Rufous-tailed Robin.wav",              xFrac: 0.80, yFrac: 0.10 },
+  { name: "Grey-headed Woodpecker",  file: "left_Grey-headed Woodpecker .wav",           xFrac: 0.10, yFrac: 0.48 },
+  { name: "Japanese Bush Warbler",   file: "left_japanese bush warbler.wav",              xFrac: 0.28, yFrac: 0.48 },
+  { name: "Marsh Tit",               file: "final_6_Marsh Tit.wav",                      xFrac: 0.50, yFrac: 0.48 },
+  { name: "Manchurian Bush Warbler", file: "right_3_Manchurian Bush Warbler .wav",       xFrac: 0.72, yFrac: 0.48 },
+  { name: "Chinese Blackbird",       file: "right_1_Chinese Blackbird.wav",              xFrac: 0.90, yFrac: 0.48 },
+  // 상단 줄 — 좌 → 우 순서
+  { name: "Japanese Wood Pigeon",    file: "left_Japanese Wodd Pigeon.wav",              xFrac: 0.20, yFrac: 0.30 },
+  { name: "Yellow-billed Grosbeak",  file: "final_12_Yellow-billed Grosbeak.wav",        xFrac: 0.50, yFrac: 0.30 },
+  { name: "Rufous-tailed Robin",     file: "right_Rufous-tailed Robin.wav",              xFrac: 0.80, yFrac: 0.30 },
 ];
 
 let sounds = [];
@@ -260,7 +260,7 @@ function updateVolumes(gazeX, gazeY) {
 
 // ── Particle system ────────────────────────────────────────
 const PARTICLE_COUNT  = 22;
-const MAX_SCATTER_R   = 28;
+const MAX_SCATTER_R   = 16;
 const CONVERGE_DELAY  = 2200;
 const SCATTER_DECAY   = 2.5;
 const VELOCITY_THRESH = 1.8;
@@ -284,7 +284,7 @@ function initParticles() {
       r,
       ox: Math.cos(angle) * r * MAX_SCATTER_R,
       oy: Math.sin(angle) * r * MAX_SCATTER_R,
-      size:    1.2 + Math.random() * 2.0,
+      size:    0.7 + Math.random() * 1.0,
       opacity: 0.35 + Math.random() * 0.5,
     };
   });
@@ -316,17 +316,8 @@ function drawGazeVisual(cx, cy, faceAlpha) {
 
   const dotAlpha = Math.pow(convergeFactor, 1.5);
   if (dotAlpha > 0.01) {
-    const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, 22);
-    glow.addColorStop(0, `rgba(255,255,255,${dotAlpha * 0.25})`);
-    glow.addColorStop(1,  "rgba(255,255,255,0)");
+    const dotR = 1.5 + 2.5 * convergeFactor;
     ctx.save();
-    ctx.globalAlpha = faceAlpha;
-    ctx.beginPath();
-    ctx.arc(cx, cy, 22, 0, Math.PI * 2);
-    ctx.fillStyle = glow;
-    ctx.fill();
-
-    const dotR = 2 + 7 * convergeFactor;
     ctx.globalAlpha = faceAlpha * dotAlpha;
     ctx.beginPath();
     ctx.arc(cx, cy, dotR, 0, Math.PI * 2);
@@ -520,6 +511,7 @@ function detectLoop() {
     convergeFactor = gazeConvergeTime / CONVERGE_DELAY;
 
     updateVolumes(smoothX, smoothY);
+    drawGazeVisual(smoothX, smoothY, 1.0);
     drawBirdName(smoothX, smoothY);
   } else {
     gazeConvergeTime = Math.max(gazeConvergeTime - dt * SCATTER_DECAY, 0);
