@@ -110,7 +110,7 @@ function initAudio() {
     xFrac:     def.xFrac,
     yFrac:     def.yFrac,
     x: 0, y: 0,
-    smoothVol: 0.5,
+    smoothVol: 0.3,
     normGain:  null,   // GainNode: 정규화 고정값
     volGain:   null,   // GainNode: 동적 볼륨 제어
     source:    null,   // AudioBufferSourceNode
@@ -171,7 +171,7 @@ async function startAudio() {
 
     // 볼륨 제어 gain (동적, 0~1)
     const volGain = audioCtx.createGain();
-    volGain.gain.value = s.smoothVol;
+    volGain.gain.value = 0.3;
 
     // 루프 소스
     const source = audioCtx.createBufferSource();
@@ -202,15 +202,28 @@ function setupAudioUnlock() {
   window.addEventListener("touchend", unlock);
 }
 
+// Vol 전환에 쓸 시정수(time constant):
+//   attack (소리 커질 때): 0.08s — 빠른 반응
+//   release (소리 작아질 때): 0.18s — 부드러운 감쇠, 순간 공백 방지
+const TC_ATTACK  = 0.08;
+const TC_RELEASE = 0.18;
+const BASE_VOL   = 0.3;
+
+function setVolSmooth(s, target) {
+  if (!s.volGain || !audioCtx) return;
+  const clamped = Math.max(0, Math.min(1, target));
+  const rising  = clamped > s.smoothVol;
+  s.volGain.gain.setTargetAtTime(clamped, audioCtx.currentTime, rising ? TC_ATTACK : TC_RELEASE);
+  s.smoothVol = clamped;
+}
+
 function updateVolumes(gazeX, gazeY) {
   const now = performance.now();
 
-  // 소리가 모두 화면 상단 → Y축 기반 focus 판정
   const threshold    = canvas.height * 0.62;
   const distAbove    = Math.max(0, threshold - gazeY);
   const focusStrength = Math.min(distAbove / threshold, 1);
 
-  // 가장 가까운 소리
   let minDist = Infinity, closestIdx = 0;
   sounds.forEach((s, i) => {
     const d = Math.sqrt((gazeX - s.x) ** 2 + (gazeY - s.y) ** 2);
@@ -218,28 +231,21 @@ function updateVolumes(gazeX, gazeY) {
   });
 
   if (focusStrength < 0.08) {
-    // 중앙/아래쪽: 50%로 복귀
     dwellSoundIndex = -1;
-    sounds.forEach(s => {
-      s.smoothVol += (0.5 - s.smoothVol) * 0.06;
-      if (s.volGain) s.volGain.gain.value = Math.max(0, Math.min(1, s.smoothVol));
-    });
+    sounds.forEach(s => setVolSmooth(s, BASE_VOL));
     return;
   }
 
-  // dwell 타이머 갱신
   if (closestIdx !== dwellSoundIndex) {
     dwellSoundIndex = closestIdx;
     dwellStartTime  = now;
   }
 
   const dwellProgress = Math.min((now - dwellStartTime) / DWELL_DURATION, 1);
-  const targetFocused = 0.70 + 0.20 * dwellProgress; // 70% → 90%
+  const targetFocused = 0.70 + 0.20 * dwellProgress;
 
   sounds.forEach((s, i) => {
-    const target  = (i === closestIdx) ? targetFocused : 0.02;
-    s.smoothVol  += (target - s.smoothVol) * 0.06;
-    if (s.volGain) s.volGain.gain.value = Math.max(0, Math.min(1, s.smoothVol));
+    setVolSmooth(s, (i === closestIdx) ? targetFocused : 0.02);
   });
 }
 
@@ -453,7 +459,7 @@ function detectLoop() {
     const anchorY = canvas.height * 0.70;
 
     let pointX = anchorX + adjYaw   * canvas.width  * 1.5;
-    let pointY = anchorY + adjPitch * canvas.height * 2.8;
+    let pointY = anchorY - adjPitch * canvas.height * 2.8;
     pointX = Math.max(0, Math.min(canvas.width,  pointX));
     pointY = Math.max(0, Math.min(canvas.height, pointY));
 
